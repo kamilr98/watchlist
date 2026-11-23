@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لیست تماشا</title>
+<style>
+  :root {
+    --bg: #eef1f4;
+    --surface: #ffffff;
+    --ink: #1b2430;
+    --muted: #6b7684;
+    --line: #d9dfe6;
+    --accent: #1f6f8b;
+    --accent-ink: #ffffff;
+    --drop: #a8453b;
+    --dl: #7a5a14;
+    --dl-bg: #f6ecd2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #14181f;
+      --surface: #1c222b;
+      --ink: #e6eaef;
+      --muted: #8f9aa8;
+      --line: #2c3541;
+      --accent: #5fb3cf;
+      --accent-ink: #0f1a20;
+      --drop: #e0877d;
+      --dl: #e3c374;
+      --dl-bg: #3a3015;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: Vazirmatn, Tahoma, system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.5;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 16px 14px 80px; }
+  h1 { font-size: 20px; margin: 4px 0 2px; font-weight: 700; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+  .tab {
+    flex: 1; padding: 10px 8px; font: inherit; font-size: 15px; font-weight: 600;
+    background: transparent; color: var(--ink); border: 1.5px solid var(--line); border-radius: 10px; cursor: pointer;
+  }
+  .tab[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  .pickbtn {
+    width: 100%; margin-bottom: 10px; padding: 12px; font: inherit; font-size: 16px; font-weight: 700;
+    background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 12px; cursor: pointer;
+  }
+  .pickcard { margin-bottom: 12px; padding: 14px; background: var(--surface); border: 1.5px solid var(--accent); border-radius: 12px; }
+  .pickcard .lbl { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+  .pickcard .ttl {
+    display: block; width: 100%; direction: ltr; text-align: left; padding: 2px 0 6px;
+    font: inherit; font-size: 22px; font-weight: 700; line-height: 1.3; color: var(--ink);
+    background: none; border: 0; cursor: pointer; overflow-wrap: anywhere;
+  }
+  .pickcard .ttl .yr { color: var(--muted); font-size: 14px; font-weight: 400; margin-left: 8px; }
+  .pickcard .acts { display: flex; gap: 8px; margin-top: 8px; }
+
+  .toolbtns { display: flex; gap: 8px; margin-bottom: 10px; }
+  .tbtn {
+    flex: 1; padding: 8px 6px; font: inherit; font-size: 14px; cursor: pointer;
+    background: transparent; color: var(--ink); border: 1.5px solid var(--line); border-radius: 10px;
+  }
+  .tbtn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  .panel { margin-bottom: 12px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  .panel h2 { font-size: 15px; margin: 0 0 10px; }
+  .panel h3 { font-size: 13px; margin: 14px 0 6px; color: var(--muted); font-weight: 600; }
+  .kv { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
+  .kv b { font-size: 18px; display: block; line-height: 1.2; }
+  .kv span { color: var(--muted); font-size: 12px; }
+  .bar { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 4px 0; }
+  .bar .lb { width: 40px; color: var(--muted); flex: none; }
+  .bar .track { flex: 1; height: 10px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+  .bar .fill { height: 100%; background: var(--accent); border-radius: 5px; }
+  .bar .n { width: 24px; text-align: left; flex: none; }
+  .toplist { margin: 0; padding: 0; list-style: none; font-size: 14px; }
+  .toplist li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border: 0; }
+  .toplist .t { direction: ltr; text-align: left; overflow-wrap: anywhere; }
+  .toplist .r { font-weight: 700; color: var(--accent); }
+  .muted { color: var(--muted); font-size: 13px; }
+
+  .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+  .field label, .fl { font-size: 13px; color: var(--muted); }
+  .frow { display: flex; gap: 8px; }
+  .frow .field { flex: 1; min-width: 0; }
+  input[type=text], input[type=number], input[type=search], select, textarea {
+    width: 100%; padding: 9px 10px; font: inherit; font-size: 16px;
+    background: var(--bg); color: var(--ink); border: 1.5px solid var(--line); border-radius: 9px;
+  }
+  textarea { min-height: 90px; resize: vertical; direction: ltr; font-size: 13px; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 10px; }
+  .check input { width: 20px; height: 20px; }
+
+  .tools { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+  .chip {
+    flex: none; padding: 7px 12px; font: inherit; font-size: 13px; cursor: pointer;
+    background: transparent; color: var(--muted); border: 1.5px solid var(--line); border-radius: 999px; white-space: nowrap;
+  }
+  .chip[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+  .selrow { display: flex; gap: 8px; }
+  .selrow select { flex: 1; min-width: 0; padding: 8px 8px; font-size: 14px; }
+
+  ul.list { list-style: none; margin: 0; padding: 0; background: var(--surface); border-radius: 12px; border: 1px solid var(--line); }
+  .row { border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .line { display: flex; align-items: center; gap: 10px; padding: 4px 6px 4px 10px; }
+  .name {
+    flex: 1; min-width: 0; direction: ltr; text-align: left; padding: 9px 4px; font: inherit; font-size: 16px; color: var(--ink);
+    background: none; border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .name .nm { overflow-wrap: anywhere; }
+  .name .yr { color: var(--muted); font-size: 13px; margin-left: 6px; }
+  .name .note { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  .tags { display: flex; gap: 6px; margin-top: 3px; direction: rtl; justify-content: flex-end; flex-wrap: wrap; }
+  .tag { font-size: 11px; padding: 1px 8px; border-radius: 999px; color: var(--muted); border: 1px solid var(--line); }
+  .tag.dl { color: var(--dl); background: var(--dl-bg); border-color: transparent; font-weight: 600; }
+  .row.done .nm { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+  .row.done .name { opacity: .55; }
+
+  .badge {
+    flex: none; min-width: 52px; padding: 7px 10px; font: inherit; font-size: 14px; font-weight: 700;
+    border-radius: 9px; cursor: pointer; text-align: center; background: transparent; color: var(--muted); border: 1.5px dashed var(--line);
+  }
+  .badge.rated { color: var(--accent-ink); background: var(--accent); border: 1.5px solid var(--accent); }
+  .badge.dropped { color: var(--drop); border: 1.5px solid var(--drop); background: transparent; font-weight: 600; }
+
+  .picker { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 12px 8px; }
+  .picker input { width: 84px; text-align: center; }
+  .picker select { width: auto; flex: 1; min-width: 110px; padding: 8px; font-size: 14px; }
+  .picker2 { padding-bottom: 14px; }
+  .btn {
+    padding: 9px 14px; font: inherit; font-size: 14px; cursor: pointer;
+    background: transparent; color: var(--ink); border: 1.5px solid var(--line); border-radius: 9px;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  .btn.danger { color: var(--drop); border-color: var(--drop); }
+
+  .empty { padding: 28px 14px; text-align: center; color: var(--muted); font-size: 14px; }
+  .toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(12px);
+    background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 999px;
+    font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; max-width: 90vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>لیست تماشا</h1>
+  <div class="sub" id="summary"></div>
+  <div class="panel" id="saveNote" hidden style="border-color: var(--drop)">
+    <b style="color: var(--drop)">ذخیرهٔ خودکار اینجا کار نمی‌کنه.</b>
+    <span class="muted"> تغییرها با رفرش پاک می‌شن. بعد از هر تغییر مهم، پشتیبان بگیر.</span>
+    <div style="margin-top:8px"><button class="btn primary" id="noteCopy">کپی پشتیبان</button></div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-m" data-tab="m"></button>
+    <button class="tab" role="tab" id="tab-s" data-tab="s"></button>
+  </div>
+
+  <button class="pickbtn" id="pickBtn">یه چیزی پیشنهاد بده</button>
+  <div class="pickcard" id="pickCard" hidden></div>
+
+  <div class="toolbtns">
+    <button class="tbtn" data-panel="stats">آمار</button>
+    <button class="tbtn" data-panel="add">+ افزودن</button>
+    <button class="tbtn" data-panel="backup">پشتیبان</button>
+  </div>
+
+  <div class="panel" id="p-stats" hidden></div>
+
+  <div class="panel" id="p-add" hidden>
+    <h2>افزودن دستی</h2>
+    <div class="frow">
+      <div class="field"><label for="aType">نوع</label>
+        <select id="aType"><option value="m">فیلم</option><option value="s">سریال</option></select></div>
+      <div class="field"><label for="aGenre">ژانر</label><select id="aGenre"></select></div>
+    </div>
+    <div class="field"><label for="aTitle">اسم (ترجیحاً انگلیسی)</label>
+      <input type="text" id="aTitle" dir="auto" autocomplete="off"></div>
+    <div class="frow">
+      <div class="field"><label for="aYear">سال (اختیاری)</label>
+        <input type="number" id="aYear" inputmode="numeric" min="1900" max="2100"></div>
+      <div class="field"><label for="aRating">امتیاز (اختیاری)</label>
+        <input type="number" id="aRating" inputmode="decimal" min="0" max="10" step="0.1"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="aDl"> دانلود کردم</label>
+    <button class="btn primary" id="aSubmit">افزودن به لیست</button>
+  </div>
+
+  <div class="panel" id="p-backup" hidden>
+    <h2>پشتیبان‌گیری</h2>
+    <p class="muted" style="margin-top:0">امتیازها، ژانرها، دانلودی‌ها و فیلم‌های اضافه‌شده دستی تو پشتیبان هستن. متنش رو یه جا ذخیره کن (مثلاً یادداشت گوشی).</p>
+    <button class="btn primary" id="bCopy">کپی پشتیبان</button>
+    <h3>بازیابی</h3>
+    <textarea id="bText" placeholder="متن پشتیبان رو اینجا بچسبون" dir="ltr"></textarea>
+    <div style="margin-top:8px"><button class="btn" id="bRestore">بازیابی از این متن</button></div>
+  </div>
+
+  <div class="tools">
+    <input type="search" id="q" placeholder="جستجو" dir="auto" autocomplete="off">
+    <div class="chips">
+      <button class="chip" data-f="all">همه</button>
+      <button class="chip" data-f="todo">ندیده</button>
+      <button class="chip" data-f="done">دیده</button>
+      <button class="chip" data-f="dl">دانلود شده</button>
+    </div>
+    <div class="selrow">
+      <select id="fGenre" aria-label="ژانر"></select>
+      <select id="fSort" aria-label="مرتب‌سازی">
+        <option value="list">ترتیب لیست</option>
+        <option value="rating">امتیاز من</option>
+        <option value="year">سال (جدیدترین)</option>
+        <option value="yearOld">سال (قدیمی‌ترین)</option>
+        <option value="name">نام (A تا Z)</option>
+      </select>
+    </div>
+  </div>
+
+  <ul class="list" id="list"></ul>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// [title, year, rating (number | "d" = dropped), note]
+const MOVIES = [
+  ["Anatomy of a Fall",2023],
+  ["Killers of the Flower Moon",2023],
+  ["Perfect Days",2023,6],
+  ["The Teachers' Lounge",2023],
+  ["Fair Play",2023],
+  ["The Holdovers",2023,6.2],
+  ["Flora and Son",2023,"d"],
+  ["Thirteen Lives",2022,8],
+  ["Hope",2013,8.5],
+  ["Dream Scenario",2023,4.5],
+  ["The Count of Monte Cristo",2024,8.7],
+  ["Front of the Class",2008],
+  ["Anora",2024],
+  ["The Zone of Interest",2023],
+  ["Poor Things",2023,2.5],
+  ["Young Woman and the Sea",2024],
+  ["The Promised Land",2023,7],
+  ["The Wild Robot",2024],
+  ["The Taste of Things",2023],
+  ["Catch Me If You Can",2002],
+  ["Three Thousand Years of Longing",2022],
+  ["The Returned",2012,null,"Les Revenants"],
+  ["Carry-On",2024,7.5],
+  ["Endless Loop",2018],
+  ["Scent of a Woman",1992],
+  ["Perfume: The Story of a Murderer",2006],
+  ["Pan's Labyrinth",2006,6.8],
+  ["Lion",2016],
+  ["Greyhound",2020],
+  ["Captain Phillips",2013],
+  ["The Courier",2020,8],
+  ["Schindler's List",1993],
+  ["Little Women",2019,8],
+  ["Dogtooth",2009,1.2],
+  ["The Help",2011,7.5],
+  ["The Devil All the Time",2020],
+  ["The Substance",2024],
+  ["The Peanut Butter Falcon",2019],
+  ["Pieces of a Woman",2020],
+  ["No Mercy",2010],
+  ["3:10 to Yuma",2007,8],
+  ["Warrior",2011,7.5],
+  ["Nowhere Special",2020,6.5],
+  ["Nocturnal Animals",2016,6],
+  ["Coherence",2013,5.8],
+  ["The Spy",2019],
+  ["Mirage",2018],
+  ["Prisoners",2013],
+  ["Black Swan",2010],
+  ["Rosemary's Baby",1968],
+  ["The Imposter",2012],
+  ["Who Am I",2014],
+  ["The Chaser",2008],
+  ["Into the Wild",2007],
+  ["Fractured",2019,8.7],
+  ["Veronica",2017],
+  ["Snowpiercer",2013],
+  ["Headhunters",2011,6.9],
+  ["Equilibrium",2002],
+  ["Loft",2008],
+  ["The Jacket",2005],
+  ["The Unknown Woman",2006],
+  ["The Creator",2023,"d"],
+  ["3096 Days",2013],
+  ["The Experiment",2001,7.7],
+  ["Orphan",2009],
+  ["Nosferatu",2025,1],
+  ["Moana",2025,5.5],
+  ["The Girl with the Needle",2024],
+  ["The Gorge",2025],
+  ["Marrowbone",2017],
+  ["Memories of Murder",2003,8],
+  ["Cure",1997],
+  ["Companion",2025],
+  ["The Sixth Sense",1999],
+  ["Sinister",2012],
+  ["Beautiful Boy",2018,"d"],
+  ["The Day After Tomorrow",2004],
+  ["Bring Her Back",2025],
+  ["The Usual Suspects",1995],
+  ["A Clockwork Orange",1971],
+  ["The Life of Chuck",2024,4],
+  ["Cidade de Deus",2002],
+  ["Late Shift",2025],
+  ["Cell 211",2009],
+  ["Bob Trevino Likes It",2024],
+  ["The Lost Bus",2025],
+  ["Caught Stealing",2025],
+  ["Oldboy",2003,7.8],
+  ["The Best Offer",2013],
+  ["The Long Walk",2025,6],
+  ["Three Billboards Outside Ebbing, Missouri",2017],
+  ["The Town",2010],
+  ["Rain Man",1988],
+  ["Frankenstein",2025],
+  ["One Battle After Another",2025,7.8],
+  ["The Collini Case",2019],
+  ["The Roses",2025],
+  ["No Other Choice",2025],
+  ["Nuremberg",2025],
+  ["Amélie",2001,7],
+  ["(500) Days of Summer",2009,6.7],
+  ["Project Hail Mary",2026,8.3],
+  ["Good Luck, Have Fun, Don't Die",2026,6.8],
+  ["Sinners",2025,6.3],
+  ["Welcome to Dongmakgol",2005],
+  ["A Hard Day",2014],
+  ["The Sheep Detectives",2026],
+  ["Mickey 17",2025],
+  ["Hamnet",2025],
+  ["Eyes Wide Shut",1999],
+  ["Wake Up Dead Man: A Knives Out Mystery",2025],
+  ["The Invisible Guest",2016],
+  ["The Body",2012]
+];
+
+const SERIES = [
+  ["Dear Child",2023],
+  ["Bodies",2023],
+  ["The Gentlemen",2024],
+  ["Griselda",2024],
+  ["Mouse",2021],
+  ["Taboo",2017],
+  ["Love Death + Robots",2019],
+  ["The Chestnut Man",2021,9],
+  ["11.22.63",2016,8.8],
+  ["The Leftovers",2014],
+  ["Parallels",2022],
+  ["The Devil's Hour",2022],
+  ["The Midwich Cuckoos",2022],
+  ["Fleabag",2016],
+  ["The End of the F...ing World",2017],
+  ["Manifest",2018],
+  ["Lupin",2021],
+  ["American Primeval",2025,8.3],
+  ["The Witness for the Prosecution",2016],
+  ["Paradise",2025],
+  ["The Night Of",2016,8],
+  ["Person of Interest",2011],
+  ["Cassandra",2025],
+  ["The Time Traveler's Wife",2022],
+  ["Dept. Q",2025],
+  ["Task",2025],
+  ["The Queen's Gambit",2020],
+  ["When They See Us",2019],
+  ["Mare of Easttown",2021],
+  ["Watchmen",2019],
+  ["Last Samurai Standing",2025],
+  ["Andor",2022],
+  ["The Pitt",2025],
+  ["The Manipulated",2025],
+  ["Prehistoric Planet",2022],
+  ["Pluribus",2025,8.8],
+  ["East of Eden",null],
+  ["Widow's Bay",2026],
+  ["Wasteland",2016],
+  ["Agent Kim Reactivated",2026],
+  ["Fringe",2008],
+  ["Lost",2004],
+  ["Midnight Mass",2021],
+  ["Timeless",2016],
+  ["Ordeal By Innocence",2018]
+];
+
+const GENRE = {
+"Anatomy of a Fall":"معمایی","Killers of the Flower Moon":"معمایی","Perfect Days":"درام","The Teachers' Lounge":"معمایی","Fair Play":"درام","The Holdovers":"درام","Flora and Son":"درام","Thirteen Lives":"درام","Hope":"درام","Dream Scenario":"کمدی","The Count of Monte Cristo":"درام","Front of the Class":"درام","Anora":"درام","The Zone of Interest":"تاریخی","Poor Things":"کمدی","Young Woman and the Sea":"درام","The Promised Land":"تاریخی","The Wild Robot":"انیمیشن","The Taste of Things":"عاشقانه","Catch Me If You Can":"معمایی","Three Thousand Years of Longing":"فانتزی","The Returned":"معمایی","Carry-On":"اکشن","Endless Loop":"علمی‌تخیلی","Scent of a Woman":"درام","Perfume: The Story of a Murderer":"معمایی","Pan's Labyrinth":"فانتزی","Lion":"درام","Greyhound":"تاریخی","Captain Phillips":"اکشن","The Courier":"معمایی","Schindler's List":"تاریخی","Little Women":"درام","Dogtooth":"درام","The Help":"درام","The Devil All the Time":"معمایی","The Substance":"ترسناک","The Peanut Butter Falcon":"کمدی","Pieces of a Woman":"درام","No Mercy":"معمایی","3:10 to Yuma":"اکشن","Warrior":"درام","Nowhere Special":"درام","Nocturnal Animals":"معمایی","Coherence":"علمی‌تخیلی","The Spy":"اکشن","Mirage":"علمی‌تخیلی","Prisoners":"معمایی","Black Swan":"ترسناک","Rosemary's Baby":"ترسناک","The Imposter":"معمایی","Who Am I":"معمایی","The Chaser":"معمایی","Into the Wild":"درام","Fractured":"معمایی","Veronica":"ترسناک","Snowpiercer":"علمی‌تخیلی","Headhunters":"معمایی","Equilibrium":"علمی‌تخیلی","Loft":"معمایی","The Jacket":"علمی‌تخیلی","The Unknown Woman":"معمایی","The Creator":"علمی‌تخیلی","3096 Days":"درام","The Experiment":"معمایی","Orphan":"ترسناک","Nosferatu":"ترسناک","Moana":"انیمیشن","The Girl with the Needle":"درام","The Gorge":"علمی‌تخیلی","Marrowbone":"ترسناک","Memories of Murder":"معمایی","Cure":"ترسناک","Companion":"علمی‌تخیلی","The Sixth Sense":"ترسناک","Sinister":"ترسناک","Beautiful Boy":"درام","The Day After Tomorrow":"علمی‌تخیلی","Bring Her Back":"ترسناک","The Usual Suspects":"معمایی","A Clockwork Orange":"علمی‌تخیلی","The Life of Chuck":"درام","Cidade de Deus":"معمایی","Late Shift":"درام","Cell 211":"معمایی","Bob Trevino Likes It":"درام","The Lost Bus":"درام","Caught Stealing":"معمایی","Oldboy":"معمایی","The Best Offer":"معمایی","The Long Walk":"ترسناک","Three Billboards Outside Ebbing, Missouri":"درام","The Town":"معمایی","Rain Man":"درام","Frankenstein":"ترسناک","One Battle After Another":"اکشن","The Collini Case":"معمایی","The Roses":"کمدی","No Other Choice":"کمدی","Nuremberg":"تاریخی","Amélie":"عاشقانه","(500) Days of Summer":"عاشقانه","Project Hail Mary":"علمی‌تخیلی","Good Luck, Have Fun, Don't Die":"علمی‌تخیلی","Sinners":"ترسناک","Welcome to Dongmakgol":"تاریخی","A Hard Day":"معمایی","The Sheep Detectives":"کمدی","Mickey 17":"علمی‌تخیلی","Hamnet":"درام","Eyes Wide Shut":"درام","Wake Up Dead Man: A Knives Out Mystery":"معمایی","The Invisible Guest":"معمایی","The Body":"معمایی",
+"Dear Child":"معمایی","Bodies":"علمی‌تخیلی","The Gentlemen":"کمدی","Griselda":"معمایی","Mouse":"معمایی","Taboo":"تاریخی","Love Death + Robots":"علمی‌تخیلی","The Chestnut Man":"معمایی","11.22.63":"علمی‌تخیلی","The Leftovers":"درام","Parallels":"علمی‌تخیلی","The Devil's Hour":"معمایی","The Midwich Cuckoos":"علمی‌تخیلی","Fleabag":"کمدی","The End of the F...ing World":"کمدی","Manifest":"علمی‌تخیلی","Lupin":"معمایی","American Primeval":"تاریخی","The Witness for the Prosecution":"معمایی","Paradise":"معمایی","The Night Of":"معمایی","Person of Interest":"معمایی","Cassandra":"علمی‌تخیلی","The Time Traveler's Wife":"عاشقانه","Dept. Q":"معمایی","Task":"معمایی","The Queen's Gambit":"درام","When They See Us":"درام","Mare of Easttown":"معمایی","Watchmen":"علمی‌تخیلی","Last Samurai Standing":"اکشن","Andor":"علمی‌تخیلی","The Pitt":"درام","The Manipulated":"معمایی","Prehistoric Planet":"مستند","Pluribus":"علمی‌تخیلی","East of Eden":"درام","Widow's Bay":"ترسناک","Wasteland":"معمایی","Agent Kim Reactivated":"اکشن","Fringe":"علمی‌تخیلی","Lost":"علمی‌تخیلی","Midnight Mass":"ترسناک","Timeless":"علمی‌تخیلی","Ordeal By Innocence":"معمایی"
+};
+const GENRES = ["درام","معمایی","ترسناک","علمی‌تخیلی","کمدی","اکشن","عاشقانه","تاریخی","انیمیشن","فانتزی","مستند"];
+
+const DATA = { m: MOVIES, s: SERIES };
+const LABEL = { m: "فیلم", s: "سریال" };
+const STORE_V2 = "watchlist-v2";
+const STORE_V1 = "watchlist-ratings-v1";
+
+// ---- state ----
+const defaults = {};
+for (const t of ["m", "s"]) {
+  for (const a of DATA[t]) {
+    if (a[2] !== undefined && a[2] !== null) defaults[t + "|" + a[0]] = a[2];
+  }
+}
+let state = Object.assign({}, defaults);   // key -> number | "d" | null
+let meta = {};                              // key -> { g?: genre, dl?: true }
+let custom = [];                            // { t, title, year }
+
+let tab = "m", filter = "all", genreFilter = "all", sortBy = "list", query = "";
+let openKey = null, panel = null, focusNext = false, lastPick = null;
+
+// ---- helpers ----
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const isDone = v => v !== undefined && v !== null;
+
+function toast(msg) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => el.classList.remove("show"), 1500);
+}
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch (e) {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e2) { return false; }
+  }
+}
+
+function items(t) {
+  const base = DATA[t].map(a => ({ key: t + "|" + a[0], t, title: a[0], year: a[1] || null, note: a[3] || "", custom: false }));
+  const extra = custom.filter(c => c.t === t).map(c => ({ key: c.t + "|" + c.title, t, title: c.title, year: c.year || null, note: "", custom: true }));
+  return base.concat(extra);
+}
+const genreOf = it => { const m = meta[it.key]; if (m && m.g !== undefined) return m.g; return GENRE[it.title] || ""; };
+const isDl = it => !!(meta[it.key] && meta[it.key].dl);
+
+// ---- storage ----
+function diffState() {
+  const r = {};
+  for (const k of Object.keys(state)) if (state[k] !== defaults[k]) r[k] = state[k];
+  return r;
+}
+function snapshot() { return { v: 2, r: diffState(), meta, custom }; }
+
+let saveMode = "unknown";   // "storage" | "local" | "none"
+
+async function storeGet(key) {
+  try { const r = await window.storage.get(key); if (r && r.value) return r.value; } catch (e) { /* try next */ }
+  try { const v = localStorage.getItem(key); if (v) return v; } catch (e) { /* none */ }
+  return null;
+}
+async function storeSet(key, val) {
+  try { const r = await window.storage.set(key, val); if (r) { saveMode = "storage"; return true; } } catch (e) { /* try next */ }
+  try { localStorage.setItem(key, val); if (localStorage.getItem(key) === val) { saveMode = "local"; return true; } } catch (e) { /* none */ }
+  saveMode = "none";
+  return false;
+}
+function updateNote() { $("saveNote").hidden = saveMode !== "none"; }
+
+async function loadSaved() {
+  const v2 = await storeGet(STORE_V2);
+  if (v2) { try { applySnapshot(JSON.parse(v2)); } catch (e) { /* ignore corrupt data */ } }
+  else {
+    const v1 = await storeGet(STORE_V1);
+    if (v1) { try { Object.assign(state, JSON.parse(v1)); } catch (e) { /* ignore */ } }
+  }
+  await storeSet("watchlist-probe", "1");   // find out whether saving works here
+  updateNote();
+}
+async function save() {
+  await storeSet(STORE_V2, JSON.stringify(snapshot()));
+  updateNote();
+}
+function applySnapshot(s) {
+  state = Object.assign({}, defaults, s.r || {});
+  meta = s.meta && typeof s.meta === "object" ? s.meta : {};
+  custom = Array.isArray(s.custom) ? s.custom : [];
+}
+
+// ---- rendering ----
+function fillSelects() {
+  const opt = (v, l) => '<option value="' + esc(v) + '">' + esc(l) + '</option>';
+  $("fGenre").innerHTML = opt("all", "همه ژانرها") + GENRES.map(g => opt(g, g)).join("") + opt("none", "بدون ژانر");
+  $("aGenre").innerHTML = opt("", "بدون ژانر") + GENRES.map(g => opt(g, g)).join("");
+}
+
+function sortItems(arr) {
+  const idx = new Map(arr.map((x, i) => [x, i]));
+  const rv = it => (typeof state[it.key] === "number" ? state[it.key] : -1);
+  const tie = (a, b) => idx.get(a) - idx.get(b);
+  if (sortBy === "rating") arr.sort((a, b) => rv(b) - rv(a) || tie(a, b));
+  else if (sortBy === "year") arr.sort((a, b) => (b.year || 0) - (a.year || 0) || tie(a, b));
+  else if (sortBy === "yearOld") arr.sort((a, b) => (a.year || 9999) - (b.year || 9999) || tie(a, b));
+  else if (sortBy === "name") arr.sort((a, b) => a.title.localeCompare(b.title) || tie(a, b));
+  return arr;
+}
+
+function renderStats() {
+  const all = items(tab);
+  const rated = all.filter(it => typeof state[it.key] === "number");
+  const dropped = all.filter(it => state[it.key] === "d").length;
+  const dlCount = all.filter(it => isDl(it) && !isDone(state[it.key])).length;
+  const avg = rated.length ? rated.reduce((s, it) => s + state[it.key], 0) / rated.length : null;
+
+  let h = '<h2>آمار ' + LABEL[tab] + 'ها</h2><div class="kv">' +
+    '<div><b>' + rated.length + '</b><span>امتیازدار</span></div>' +
+    '<div><b>' + (avg === null ? "—" : avg.toFixed(1)) + '</b><span>میانگین امتیاز</span></div>' +
+    '<div><b>' + dropped + '</b><span>رها شده</span></div>' +
+    '<div><b>' + dlCount + '</b><span>دانلودشدهٔ ندیده</span></div>' +
+    '<div><b>' + (all.length - rated.length - dropped) + '</b><span>ندیده</span></div></div>';
+
+  if (rated.length) {
+    const buckets = [0, 0, 0, 0, 0], names = ["0–2", "2–4", "4–6", "6–8", "8–10"];
+    rated.forEach(it => { const v = state[it.key]; buckets[Math.min(4, Math.floor(v / 2))]++; });
+    const mx = Math.max.apply(null, buckets);
+    h += '<h3>پراکندگی امتیازها</h3>' + buckets.map((n, i) =>
+      '<div class="bar"><span class="lb">' + names[i] + '</span><span class="track"><span class="fill" style="display:block;width:' +
+      (mx ? Math.round(n / mx * 100) : 0) + '%"></span></span><span class="n">' + n + '</span></div>').join("");
+
+    const top = rated.slice().sort((a, b) => state[b.key] - state[a.key]).slice(0, 5);
+    h += '<h3>بهترین‌هات</h3><ul class="toplist">' + top.map(it =>
+      '<li><span class="t">' + esc(it.title) + '</span><span class="r">' + state[it.key] + '</span></li>').join("") + '</ul>';
+
+    const g = {};
+    rated.forEach(it => { const n = genreOf(it) || "بدون ژانر"; (g[n] = g[n] || []).push(state[it.key]); });
+    const gl = Object.keys(g).filter(n => g[n].length >= 2)
+      .map(n => ({ n, avg: g[n].reduce((a, b) => a + b, 0) / g[n].length, c: g[n].length }))
+      .sort((a, b) => b.avg - a.avg).slice(0, 4);
+    if (gl.length) {
+      h += '<h3>ژانرهای مورد علاقه (حداقل ۲ امتیاز)</h3><ul class="toplist">' + gl.map(x =>
+        '<li><span>' + esc(x.n) + ' <span class="muted">(' + x.c + ')</span></span><span class="r">' + x.avg.toFixed(1) + '</span></li>').join("") + '</ul>';
+    }
+  } else {
+    h += '<p class="muted">هنوز امتیازی ثبت نشده.</p>';
+  }
+  $("p-stats").innerHTML = h;
+}
+
+function render() {
+  for (const t of ["m", "s"]) {
+    const el = $("tab-" + t);
+    el.textContent = LABEL[t] + " (" + items(t).length + ")";
+    el.setAttribute("aria-selected", String(tab === t));
+  }
+  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.f === filter)));
+  document.querySelectorAll(".tbtn").forEach(b => b.setAttribute("aria-pressed", String(panel === b.dataset.panel)));
+  for (const p of ["stats", "add", "backup"]) $("p-" + p).hidden = panel !== p;
+  if (panel === "stats") renderStats();
+
+  const all = items(tab);
+  const doneCount = all.filter(it => isDone(state[it.key])).length;
+  $("summary").textContent = doneCount + " از " + all.length + " " + LABEL[tab] + " دیده یا رها شده";
+
+  const q = query.trim().toLowerCase();
+  const list = sortItems(all.filter(it => {
+    const done = isDone(state[it.key]);
+    if (filter === "todo" && done) return false;
+    if (filter === "done" && !done) return false;
+    if (filter === "dl" && !isDl(it)) return false;
+    const g = genreOf(it);
+    if (genreFilter === "none" && g) return false;
+    if (genreFilter !== "all" && genreFilter !== "none" && g !== genreFilter) return false;
+    if (q && !(it.title.toLowerCase().includes(q) || it.note.toLowerCase().includes(q))) return false;
+    return true;
+  }));
+
+  const ul = $("list");
+  if (!list.length) { ul.innerHTML = '<li class="empty">چیزی پیدا نشد</li>'; return; }
+
+  ul.innerHTML = list.map(it => {
+    const key = it.key, v = state[key], done = isDone(v), k = encodeURIComponent(key);
+    const g = genreOf(it), dl = isDl(it);
+    let badge;
+    if (v === "d") badge = '<button class="badge dropped" data-act="edit" data-k="' + k + '" aria-label="تغییر وضعیت">رها</button>';
+    else if (done) badge = '<button class="badge rated" data-act="edit" data-k="' + k + '" aria-label="تغییر امتیاز">' + v + '</button>';
+    else badge = '<button class="badge" data-act="edit" data-k="' + k + '" aria-label="امتیاز دادن">امتیاز</button>';
+
+    let panelHtml = "";
+    if (openKey === key) {
+      const cur = typeof v === "number" ? v : "";
+      const opts = '<option value=""' + (g ? "" : " selected") + '>بدون ژانر</option>' +
+        GENRES.map(x => '<option value="' + x + '"' + (x === g ? " selected" : "") + '>' + x + '</option>').join("");
+      panelHtml =
+        '<div class="picker">' +
+        '<input type="number" inputmode="decimal" min="0" max="10" step="0.1" placeholder="۰ تا ۱۰" value="' + cur + '" data-input="' + k + '">' +
+        '<button class="btn primary" data-act="rate" data-k="' + k + '">ثبت امتیاز</button>' +
+        '<button class="btn danger" data-act="drop" data-k="' + k + '">رها کردم</button>' +
+        (done ? '<button class="btn" data-act="clear" data-k="' + k + '">پاک کردن</button>' : "") +
+        '</div>' +
+        '<div class="picker picker2">' +
+        '<select data-genre="' + k + '" aria-label="ژانر">' + opts + '</select>' +
+        '<button class="btn" data-act="dl" data-k="' + k + '">' + (dl ? "برداشتن علامت دانلود" : "دانلود کردم") + '</button>' +
+        (it.custom ? '<button class="btn danger" data-act="del" data-k="' + k + '">حذف از لیست</button>' : "") +
+        '<button class="btn" data-act="close" data-k="' + k + '">بستن</button>' +
+        '</div>';
+    }
+
+    return '<li class="row' + (done ? " done" : "") + '"><div class="line">' +
+      '<button class="name" data-act="copy" data-name="' + esc(it.title) + '">' +
+      '<span class="nm">' + esc(it.title) + '</span>' +
+      (it.year ? '<span class="yr">' + it.year + '</span>' : "") +
+      (it.note ? '<span class="note">' + esc(it.note) + '</span>' : "") +
+      ((g || dl) ? '<span class="tags">' + (g ? '<span class="tag">' + esc(g) + '</span>' : "") +
+        (dl ? '<span class="tag dl">دانلود شده</span>' : "") + '</span>' : "") +
+      '</button>' + badge + '</div>' + panelHtml + '</li>';
+  }).join("");
+
+  if (focusNext) {
+    focusNext = false;
+    const inp = ul.querySelector("input[data-input]");
+    if (inp) inp.focus();
+  }
+}
+
+function commit(msg) { save(); render(); if (msg) toast(msg); }
+function setValue(key, val) { state[key] = val; openKey = null; commit(); }
+
+// ---- random pick: unwatched, not downloaded, respects the genre filter ----
+function pickRandom() {
+  const card = $("pickCard");
+  const pool = items(tab).filter(it => {
+    if (isDone(state[it.key]) || isDl(it)) return false;
+    const g = genreOf(it);
+    if (genreFilter === "none") return !g;
+    if (genreFilter !== "all") return g === genreFilter;
+    return true;
+  });
+  card.hidden = false;
+  if (!pool.length) {
+    card.innerHTML = '<div class="lbl">چیزی برای پیشنهاد نمونده (ندیده‌هایی که دانلود نکردی، با این ژانر)</div>';
+    return;
+  }
+  const choices = pool.length > 1 ? pool.filter(it => it.key !== lastPick) : pool;
+  const it = choices[Math.floor(Math.random() * choices.length)];
+  lastPick = it.key;
+  const g = genreOf(it);
+  card.innerHTML =
+    '<div class="lbl">پیشنهاد ' + LABEL[tab] + (g ? " · " + esc(g) : "") + '</div>' +
+    '<button class="ttl" data-act="copy" data-name="' + esc(it.title) + '">' + esc(it.title) +
+    (it.year ? '<span class="yr">' + it.year + '</span>' : "") + '</button>' +
+    '<div class="acts"><button class="btn primary" id="pickAgain">یکی دیگه</button>' +
+    '<button class="btn" id="pickClose">بستن</button></div>';
+}
+function hidePick() { $("pickCard").hidden = true; }
+
+// ---- manual add ----
+function addItem() {
+  const t = $("aType").value;
+  const title = $("aTitle").value.trim();
+  if (!title) { toast("اسم رو بنویس"); return; }
+  const key = t + "|" + title;
+  if (items(t).some(it => it.title.toLowerCase() === title.toLowerCase())) { toast("این از قبل تو لیست هست"); return; }
+  const y = parseInt($("aYear").value, 10);
+  const rs = String($("aRating").value).replace(",", ".");
+  let rating = null;
+  if (rs !== "") {
+    rating = parseFloat(rs);
+    if (isNaN(rating) || rating < 0 || rating > 10) { toast("امتیاز باید بین ۰ تا ۱۰ باشه"); return; }
+    rating = Math.round(rating * 10) / 10;
+  }
+  custom.push({ t, title, year: isNaN(y) ? null : y });
+  const m = {};
+  if ($("aGenre").value) m.g = $("aGenre").value;
+  if ($("aDl").checked) m.dl = true;
+  if (m.g || m.dl) meta[key] = m;
+  if (rating !== null) state[key] = rating;
+  $("aTitle").value = ""; $("aYear").value = ""; $("aRating").value = ""; $("aDl").checked = false;
+  tab = t; hidePick();
+  commit("اضافه شد");
+}
+
+// ---- backup ----
+async function copyBackup() {
+  const ok = await copyText(JSON.stringify(snapshot()));
+  toast(ok ? "پشتیبان کپی شد" : "کپی نشد");
+}
+function restoreBackup() {
+  try {
+    const s = JSON.parse($("bText").value.trim());
+    if (!s || typeof s !== "object" || !("r" in s || "meta" in s || "custom" in s)) throw new Error("bad");
+    applySnapshot(s);
+    openKey = null; $("bText").value = "";
+    commit("بازیابی شد");
+  } catch (e) { toast("متن پشتیبان معتبر نیست"); }
+}
+
+// ---- events ----
+document.addEventListener("click", async e => {
+  const tabBtn = e.target.closest("[data-tab]");
+  if (tabBtn) { tab = tabBtn.dataset.tab; openKey = null; hidePick(); $("aType").value = tab; render(); return; }
+  const chip = e.target.closest("[data-f]");
+  if (chip) { filter = chip.dataset.f; openKey = null; render(); return; }
+  const pb = e.target.closest("[data-panel]");
+  if (pb) {
+    panel = panel === pb.dataset.panel ? null : pb.dataset.panel;
+    if (panel === "add") $("aType").value = tab;
+    render(); return;
+  }
+  const id = e.target.id;
+  if (id === "pickBtn" || id === "pickAgain") { pickRandom(); return; }
+  if (id === "pickClose") { hidePick(); return; }
+  if (id === "aSubmit") { addItem(); return; }
+  if (id === "bCopy" || id === "noteCopy") { copyBackup(); return; }
+  if (id === "bRestore") { restoreBackup(); return; }
+
+  const b = e.target.closest("[data-act]");
+  if (!b) return;
+  const key = b.dataset.k ? decodeURIComponent(b.dataset.k) : null;
+  const act = b.dataset.act;
+
+  if (act === "copy") {
+    const ok = await copyText(b.dataset.name);
+    toast(ok ? "کپی شد" : "کپی نشد");
+  } else if (act === "edit") {
+    openKey = openKey === key ? null : key;
+    focusNext = openKey !== null;
+    render();
+  } else if (act === "close") { openKey = null; render(); }
+  else if (act === "drop") setValue(key, "d");
+  else if (act === "clear") setValue(key, null);
+  else if (act === "rate") {
+    const inp = b.closest(".row").querySelector("input[data-input]");
+    const n = parseFloat(String(inp.value).replace(",", "."));
+    if (isNaN(n) || n < 0 || n > 10) { toast("عددی بین ۰ تا ۱۰ بنویس"); return; }
+    setValue(key, Math.round(n * 10) / 10);
+  } else if (act === "dl") {
+    const m = meta[key] || (meta[key] = {});
+    if (m.dl) delete m.dl; else m.dl = true;
+    if (m.g === undefined && !m.dl) delete meta[key];
+    commit();
+  } else if (act === "del") {
+    const [t, ...rest] = key.split("|");
+    const title = rest.join("|");
+    custom = custom.filter(c => !(c.t === t && c.title === title));
+    delete state[key]; delete meta[key];
+    openKey = null;
+    commit("حذف شد");
+  }
+});
+
+document.addEventListener("change", e => {
+  if (e.target.matches("select[data-genre]")) {
+    const key = decodeURIComponent(e.target.dataset.genre);
+    const m = meta[key] || (meta[key] = {});
+    const base = GENRE[key.split("|").slice(1).join("|")] || "";
+    if (e.target.value === base) delete m.g;
+    else m.g = e.target.value;   // "" = explicitly no genre
+    if (m.g === undefined && !m.dl) delete meta[key];
+    commit();
+  }
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.matches("input[data-input]")) {
+    e.target.closest(".row").querySelector('[data-act="rate"]').click();
+  }
+});
+
+$("q").addEventListener("input", e => { query = e.target.value; render(); });
+$("fGenre").addEventListener("change", e => { genreFilter = e.target.value; render(); });
+$("fSort").addEventListener("change", e => { sortBy = e.target.value; render(); });
+
+fillSelects();
+render();
+loadSaved().then(render);
+</script>
+</body>
+</html>
