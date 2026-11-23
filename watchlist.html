@@ -91,7 +91,7 @@
   .field label, .fl { font-size: 13px; color: var(--muted); }
   .frow { display: flex; gap: 8px; }
   .frow .field { flex: 1; min-width: 0; }
-  input[type=text], input[type=number], input[type=search], select, textarea {
+  input[type=text], input[type=number], input[type=search], input[type=password], select, textarea {
     width: 100%; padding: 9px 10px; font: inherit; font-size: 16px;
     background: var(--bg); color: var(--ink); border: 1.5px solid var(--line); border-radius: 9px;
   }
@@ -145,6 +145,11 @@
   .btn.danger { color: var(--drop); border-color: var(--drop); }
 
   .empty { padding: 28px 14px; text-align: center; color: var(--muted); font-size: 14px; }
+  .status { font-size: 13px; margin: -8px 0 12px; }
+  .status.ok { color: var(--accent); }
+  .status.pending { color: var(--muted); }
+  .status.err { color: var(--drop); }
+  .badge.static { cursor: default; }
   .toast {
     position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(12px);
     background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 999px;
@@ -159,11 +164,7 @@
 <div class="wrap">
   <h1>لیست تماشا</h1>
   <div class="sub" id="summary"></div>
-  <div class="panel" id="saveNote" hidden style="border-color: var(--drop)">
-    <b style="color: var(--drop)">ذخیرهٔ خودکار اینجا کار نمی‌کنه.</b>
-    <span class="muted"> تغییرها با رفرش پاک می‌شن. بعد از هر تغییر مهم، پشتیبان بگیر.</span>
-    <div style="margin-top:8px"><button class="btn primary" id="noteCopy">کپی پشتیبان</button></div>
-  </div>
+  <div class="status" id="status" hidden></div>
 
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tab-m" data-tab="m"></button>
@@ -177,6 +178,7 @@
     <button class="tbtn" data-panel="stats">آمار</button>
     <button class="tbtn" data-panel="add">+ افزودن</button>
     <button class="tbtn" data-panel="backup">پشتیبان</button>
+    <button class="tbtn" data-panel="settings">اتصال</button>
   </div>
 
   <div class="panel" id="p-stats" hidden></div>
@@ -198,6 +200,18 @@
     </div>
     <label class="check"><input type="checkbox" id="aDl"> دانلود کردم</label>
     <button class="btn primary" id="aSubmit">افزودن به لیست</button>
+  </div>
+
+  <div class="panel" id="p-settings" hidden>
+    <h2>اتصال به GitHub</h2>
+    <div class="field"><label for="sToken">توکن (Fine-grained token)</label>
+      <input type="password" id="sToken" dir="ltr" autocomplete="off"></div>
+    <div class="frow">
+      <div class="field"><label for="sOwner">اسم کاربری GitHub</label><input type="text" id="sOwner" dir="ltr" autocomplete="off"></div>
+      <div class="field"><label for="sRepo">اسم مخزن</label><input type="text" id="sRepo" dir="ltr" autocomplete="off"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="sRemember" checked> توکن تو این مرورگر یادم بمونه</label>
+    <button class="btn primary" id="sSave">ذخیره و تست اتصال</button>
   </div>
 
   <div class="panel" id="p-backup" hidden>
@@ -468,35 +482,157 @@ function diffState() {
 }
 function snapshot() { return { v: 2, r: diffState(), meta, custom }; }
 
-let saveMode = "unknown";   // "storage" | "local" | "none"
+// ---- GitHub storage: data lives in data.json in the repo ----
+const EDIT = new URLSearchParams(location.search).get("edit") === "1";
+const cfg = { token: "", owner: "", repo: "", path: "data.json" };
+let sha, dirty = false, saving = false, loaded = false, timer = null, statusKind = "";
 
-async function storeGet(key) {
-  try { const r = await window.storage.get(key); if (r && r.value) return r.value; } catch (e) { /* try next */ }
-  try { const v = localStorage.getItem(key); if (v) return v; } catch (e) { /* none */ }
-  return null;
+function guessRepo() {
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/);
+  const seg = location.pathname.split("/").filter(Boolean)[0] || "";
+  return { owner: m ? m[1] : "", repo: m && seg && !/\.html?$/.test(seg) ? seg : "" };
 }
-async function storeSet(key, val) {
-  try { const r = await window.storage.set(key, val); if (r) { saveMode = "storage"; return true; } } catch (e) { /* try next */ }
-  try { localStorage.setItem(key, val); if (localStorage.getItem(key) === val) { saveMode = "local"; return true; } } catch (e) { /* none */ }
-  saveMode = "none";
-  return false;
+function loadCfg() {
+  let c = {};
+  try { c = JSON.parse(localStorage.getItem("wl-gh-cfg") || "{}"); } catch (e) { /* none */ }
+  const g = guessRepo();
+  cfg.token = c.token || ""; cfg.owner = c.owner || g.owner; cfg.repo = c.repo || g.repo;
+  $("sToken").value = cfg.token; $("sOwner").value = cfg.owner; $("sRepo").value = cfg.repo;
 }
-function updateNote() { $("saveNote").hidden = saveMode !== "none"; }
+const configured = () => !!(cfg.token && cfg.owner && cfg.repo);
 
-async function loadSaved() {
-  const v2 = await storeGet(STORE_V2);
-  if (v2) { try { applySnapshot(JSON.parse(v2)); } catch (e) { /* ignore corrupt data */ } }
-  else {
-    const v1 = await storeGet(STORE_V1);
-    if (v1) { try { Object.assign(state, JSON.parse(v1)); } catch (e) { /* ignore */ } }
+function b64enc(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function b64dec(b64) {
+  const bin = atob(String(b64).replace(/\s/g, ""));
+  return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+}
+
+function ghReq(method, url, body) {
+  return fetch(url, {
+    method, cache: "no-store",
+    headers: Object.assign({ Authorization: "Bearer " + cfg.token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+      body ? { "Content-Type": "application/json" } : {}),
+    body: body ? JSON.stringify(body) : undefined
+  });
+}
+const fileUrl = () => "https://api.github.com/repos/" + cfg.owner + "/" + cfg.repo + "/contents/" + cfg.path;
+
+async function httpError(r) {
+  let m = "";
+  try { m = (await r.json()).message || ""; } catch (e) { /* no body */ }
+  const err = new Error(m || ("HTTP " + r.status));
+  err.status = r.status;
+  return err;
+}
+function errMsg(e) {
+  if (e.status === 401) return "توکن اشتباه یا منقضی شده";
+  if (e.status === 403) return "توکن اجازهٔ نوشتن نداره (یا محدودیت GitHub)";
+  if (e.status === 404) return "مخزن پیدا نشد یا توکن به این مخزن دسترسی نداره";
+  if (e.status === 409 || e.status === 422) return "تداخل در ذخیره؛ دوباره امتحان کن";
+  if (e.status) return "خطای GitHub: " + e.status;
+  return "ارتباط با GitHub برقرار نشد (فیلترشکن؟)";
+}
+
+// returns the file JSON (with content) or null when the file doesn't exist yet; sets sha
+async function refreshSha() {
+  const r = await ghReq("GET", fileUrl());
+  if (r.status === 404) { sha = null; return null; }
+  if (!r.ok) throw await httpError(r);
+  const j = await r.json();
+  sha = j.sha;
+  return j;
+}
+async function pushToGitHub(text) {
+  const content = b64enc(text);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (sha === undefined) await refreshSha();
+    const body = { message: "update watchlist", content };
+    if (sha) body.sha = sha;
+    const r = await ghReq("PUT", fileUrl(), body);
+    if (r.ok) { const j = await r.json(); sha = j.content.sha; return; }
+    if ((r.status === 409 || r.status === 422) && attempt === 0) { await refreshSha(); continue; }
+    throw await httpError(r);
   }
-  await storeSet("watchlist-probe", "1");   // find out whether saving works here
-  updateNote();
 }
-async function save() {
-  await storeSet(STORE_V2, JSON.stringify(snapshot()));
-  updateNote();
+
+function setStatus(kind, text) {
+  statusKind = kind;
+  const el = $("status");
+  if (!EDIT) { el.hidden = true; return; }
+  const map = {
+    saved: ["✓ همه تغییرها ذخیره‌ست", "ok"],
+    pending: ["تغییر ذخیره‌نشده…", "pending"],
+    saving: [text || "در حال ذخیره…", "pending"],
+    notoken: ["توکن وارد نشده؛ تغییرها ذخیره نمی‌شن", "err"],
+    err: [text || "ذخیره نشد", "err"]
+  };
+  const m = map[kind];
+  el.hidden = !m;
+  if (!m) return;
+  el.className = "status " + m[1];
+  el.innerHTML = esc(m[0]) + (kind === "err" ? ' <button class="btn" id="retrySave" style="padding:4px 10px;font-size:12px">تلاش دوباره</button>' : "");
 }
+
+function markDirty() {
+  if (!EDIT) return;
+  dirty = true;
+  setStatus("pending");
+  clearTimeout(timer);
+  timer = setTimeout(flush, 700);
+}
+async function flush() {
+  if (saving || !dirty) return;
+  if (!configured()) { setStatus("notoken"); return; }
+  if (!loaded) { setStatus("err", "داده‌ها بارگذاری نشدن؛ صفحه رو رفرش کن"); return; }
+  saving = true; dirty = false; setStatus("saving");
+  let ok = false;
+  try { await pushToGitHub(JSON.stringify(snapshot(), null, 1)); ok = true; }
+  catch (e) { dirty = true; setStatus("err", errMsg(e)); }
+  saving = false;
+  if (ok) { if (dirty) flush(); else setStatus("saved"); }
+}
+
+async function loadData() {
+  if (EDIT && configured()) {
+    try {
+      const j = await refreshSha();
+      if (j) applySnapshot(JSON.parse(b64dec(j.content)));
+      loaded = true; setStatus("saved");
+      return;
+    } catch (e) { setStatus("err", errMsg(e)); return; }   // don't fall back: stale data could overwrite newer data
+  }
+  try {
+    const r = await fetch("data.json?t=" + Date.now(), { cache: "no-store" });
+    if (r.ok) applySnapshot(await r.json());
+  } catch (e) { /* no data file: built-in list only */ }
+  loaded = true;
+}
+
+async function saveSettings() {
+  const token = $("sToken").value.trim(), owner = $("sOwner").value.trim(), repo = $("sRepo").value.trim();
+  if (!token || !owner || !repo) { toast("توکن، اسم کاربری و مخزن رو پر کن"); return; }
+  Object.assign(cfg, { token, owner, repo });
+  sha = undefined;
+  try { localStorage.setItem("wl-gh-cfg", JSON.stringify($("sRemember").checked ? { token, owner, repo } : { owner, repo })); } catch (e) { /* ignore */ }
+  setStatus("saving", "در حال اتصال…");
+  try {
+    const rr = await ghReq("GET", "https://api.github.com/repos/" + owner + "/" + repo);
+    if (!rr.ok) throw await httpError(rr);
+    const j = await refreshSha();
+    if (!dirty && j) applySnapshot(JSON.parse(b64dec(j.content)));
+    loaded = true; panel = null;
+    setStatus("saved"); render(); toast("متصل شد ✓");
+    if (dirty) flush();
+  } catch (e) { setStatus("err", errMsg(e)); toast(errMsg(e)); }
+}
+
+window.addEventListener("beforeunload", e => { if (dirty || saving) { e.preventDefault(); e.returnValue = ""; } });
+
 function applySnapshot(s) {
   state = Object.assign({}, defaults, s.r || {});
   meta = s.meta && typeof s.meta === "object" ? s.meta : {};
@@ -570,7 +706,7 @@ function render() {
   }
   document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.f === filter)));
   document.querySelectorAll(".tbtn").forEach(b => b.setAttribute("aria-pressed", String(panel === b.dataset.panel)));
-  for (const p of ["stats", "add", "backup"]) $("p-" + p).hidden = panel !== p;
+  for (const p of ["stats", "add", "backup", "settings"]) $("p-" + p).hidden = panel !== p;
   if (panel === "stats") renderStats();
 
   const all = items(tab);
@@ -597,7 +733,8 @@ function render() {
     const key = it.key, v = state[key], done = isDone(v), k = encodeURIComponent(key);
     const g = genreOf(it), dl = isDl(it);
     let badge;
-    if (v === "d") badge = '<button class="badge dropped" data-act="edit" data-k="' + k + '" aria-label="تغییر وضعیت">رها</button>';
+    if (!EDIT) badge = v === "d" ? '<span class="badge dropped static">رها</span>' : (done ? '<span class="badge rated static">' + v + '</span>' : "");
+    else if (v === "d") badge = '<button class="badge dropped" data-act="edit" data-k="' + k + '" aria-label="تغییر وضعیت">رها</button>';
     else if (done) badge = '<button class="badge rated" data-act="edit" data-k="' + k + '" aria-label="تغییر امتیاز">' + v + '</button>';
     else badge = '<button class="badge" data-act="edit" data-k="' + k + '" aria-label="امتیاز دادن">امتیاز</button>';
 
@@ -638,7 +775,7 @@ function render() {
   }
 }
 
-function commit(msg) { save(); render(); if (msg) toast(msg); }
+function commit(msg) { markDirty(); render(); if (msg) toast(msg); }
 function setValue(key, val) { state[key] = val; openKey = null; commit(); }
 
 // ---- random pick: unwatched, not downloaded, respects the genre filter ----
@@ -726,7 +863,9 @@ document.addEventListener("click", async e => {
   if (id === "pickBtn" || id === "pickAgain") { pickRandom(); return; }
   if (id === "pickClose") { hidePick(); return; }
   if (id === "aSubmit") { addItem(); return; }
-  if (id === "bCopy" || id === "noteCopy") { copyBackup(); return; }
+  if (id === "bCopy") { copyBackup(); return; }
+  if (id === "sSave") { saveSettings(); return; }
+  if (id === "retrySave") { flush(); return; }
   if (id === "bRestore") { restoreBackup(); return; }
 
   const b = e.target.closest("[data-act]");
@@ -787,8 +926,13 @@ $("fGenre").addEventListener("change", e => { genreFilter = e.target.value; rend
 $("fSort").addEventListener("change", e => { sortBy = e.target.value; render(); });
 
 fillSelects();
+if (EDIT) loadCfg();
+else document.querySelectorAll('[data-panel="add"],[data-panel="backup"],[data-panel="settings"]').forEach(b => { b.hidden = true; });
 render();
-loadSaved().then(render);
+loadData().then(() => {
+  if (EDIT && !configured()) { panel = "settings"; setStatus("notoken"); }
+  render();
+});
 </script>
 </body>
 </html>
