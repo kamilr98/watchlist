@@ -144,6 +144,11 @@
   .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
   .btn.danger { color: var(--drop); border-color: var(--drop); }
 
+  .badge.watching { color: var(--accent); border: 1.5px solid var(--accent); background: transparent; font-weight: 600; }
+  .tag.watch { color: var(--accent); border-color: var(--accent); }
+  .picker input.progress { width: 100%; flex-basis: 100%; text-align: start; font-size: 14px; }
+  .pickcard .picker { padding-left: 0; padding-right: 0; }
+  .pickcard .picker2 { padding-bottom: 0; }
   .empty { padding: 28px 14px; text-align: center; color: var(--muted); font-size: 14px; }
   .status { font-size: 13px; margin: -8px 0 12px; }
   .status.ok { color: var(--accent); }
@@ -172,7 +177,8 @@
   </div>
 
   <button class="pickbtn" id="pickBtn">یه چیزی پیشنهاد بده</button>
-  <div class="pickcard" id="pickCard" hidden></div>
+  <label class="check" id="tasteWrap"><input type="checkbox" id="taste"> سلیقه‌ای (ژانرهایی که بالاتر امتیاز دادی بیشتر پیشنهاد بشن)</label>
+  <div class="pickcard" id="pickCard" data-edit-root hidden></div>
 
   <div class="toolbtns">
     <button class="tbtn" data-panel="stats">آمار</button>
@@ -229,6 +235,7 @@
       <button class="chip" data-f="all">همه</button>
       <button class="chip" data-f="todo">ندیده</button>
       <button class="chip" data-f="done">دیده</button>
+      <button class="chip" data-f="watch">در حال دیدن</button>
       <button class="chip" data-f="dl">دانلود شده</button>
     </div>
     <div class="selrow">
@@ -472,7 +479,7 @@ function items(t) {
   return base.concat(extra);
 }
 const genreOf = it => { const m = meta[it.key]; if (m && m.g !== undefined) return m.g; return GENRE[it.title] || ""; };
-const isDl = it => !!(meta[it.key] && meta[it.key].dl);
+const isDl = it => EDIT && !!(meta[it.key] && meta[it.key].dl);   // hidden from viewers
 
 // ---- storage ----
 function diffState() {
@@ -657,10 +664,17 @@ function sortItems(arr) {
   return arr;
 }
 
+const isWatching = it => { const m = meta[it.key]; return !!m && m.w !== undefined && !isDone(state[it.key]); };
+function cleanMeta(key) {
+  const m = meta[key];
+  if (m && m.g === undefined && !m.dl && m.w === undefined) delete meta[key];
+}
+
 function renderStats() {
   const all = items(tab);
   const rated = all.filter(it => typeof state[it.key] === "number");
   const dropped = all.filter(it => state[it.key] === "d").length;
+  const watching = all.filter(isWatching).length;
   const dlCount = all.filter(it => isDl(it) && !isDone(state[it.key])).length;
   const avg = rated.length ? rated.reduce((s, it) => s + state[it.key], 0) / rated.length : null;
 
@@ -668,19 +682,20 @@ function renderStats() {
     '<div><b>' + rated.length + '</b><span>امتیازدار</span></div>' +
     '<div><b>' + (avg === null ? "—" : avg.toFixed(1)) + '</b><span>میانگین امتیاز</span></div>' +
     '<div><b>' + dropped + '</b><span>رها شده</span></div>' +
-    '<div><b>' + dlCount + '</b><span>دانلودشدهٔ ندیده</span></div>' +
-    '<div><b>' + (all.length - rated.length - dropped) + '</b><span>ندیده</span></div></div>';
+    '<div><b>' + watching + '</b><span>در حال دیدن</span></div>' +
+    (EDIT ? '<div><b>' + dlCount + '</b><span>دانلودشدهٔ ندیده</span></div>' : "") +
+    '<div><b>' + (all.length - rated.length - dropped - watching) + '</b><span>ندیده</span></div></div>';
 
   if (rated.length) {
     const buckets = [0, 0, 0, 0, 0], names = ["0–2", "2–4", "4–6", "6–8", "8–10"];
-    rated.forEach(it => { const v = state[it.key]; buckets[Math.min(4, Math.floor(v / 2))]++; });
+    rated.forEach(it => { buckets[Math.min(4, Math.floor(state[it.key] / 2))]++; });
     const mx = Math.max.apply(null, buckets);
     h += '<h3>پراکندگی امتیازها</h3>' + buckets.map((n, i) =>
       '<div class="bar"><span class="lb">' + names[i] + '</span><span class="track"><span class="fill" style="display:block;width:' +
       (mx ? Math.round(n / mx * 100) : 0) + '%"></span></span><span class="n">' + n + '</span></div>').join("");
 
     const top = rated.slice().sort((a, b) => state[b.key] - state[a.key]).slice(0, 5);
-    h += '<h3>بهترین‌هات</h3><ul class="toplist">' + top.map(it =>
+    h += '<h3>بهترین‌ها</h3><ul class="toplist">' + top.map(it =>
       '<li><span class="t">' + esc(it.title) + '</span><span class="r">' + state[it.key] + '</span></li>').join("") + '</ul>';
 
     const g = {};
@@ -696,6 +711,29 @@ function renderStats() {
     h += '<p class="muted">هنوز امتیازی ثبت نشده.</p>';
   }
   $("p-stats").innerHTML = h;
+}
+
+// edit controls, shared by list rows and the suggestion card
+function editPanel(it) {
+  const key = it.key, v = state[key], done = isDone(v), k = encodeURIComponent(key);
+  const g = genreOf(it), dl = isDl(it), w = isWatching(it);
+  const cur = typeof v === "number" ? v : "";
+  const opts = '<option value=""' + (g ? "" : " selected") + '>بدون ژانر</option>' +
+    GENRES.map(x => '<option value="' + x + '"' + (x === g ? " selected" : "") + '>' + x + '</option>').join("");
+  return '<div class="picker">' +
+    '<input type="number" inputmode="decimal" min="0" max="10" step="0.1" placeholder="۰ تا ۱۰" value="' + cur + '" data-input="' + k + '">' +
+    '<button class="btn primary" data-act="rate" data-k="' + k + '">ثبت امتیاز</button>' +
+    '<button class="btn danger" data-act="drop" data-k="' + k + '">رها کردم</button>' +
+    (done ? '<button class="btn" data-act="clear" data-k="' + k + '">پاک کردن</button>' : "") +
+    '</div>' +
+    '<div class="picker picker2">' +
+    '<select data-genre="' + k + '" aria-label="ژانر">' + opts + '</select>' +
+    '<button class="btn" data-act="watch" data-k="' + k + '">' + (w ? "دیگه نمی‌بینم" : "دارم می‌بینم") + '</button>' +
+    '<button class="btn" data-act="dl" data-k="' + k + '">' + (dl ? "برداشتن علامت دانلود" : "دانلود کردم") + '</button>' +
+    (w ? '<input type="text" class="progress" data-progress="' + k + '" value="' + esc(meta[key].w) + '" placeholder="مثلاً فصل ۲ قسمت ۳" dir="auto">' : "") +
+    (it.custom ? '<button class="btn danger" data-act="del" data-k="' + k + '">حذف از لیست</button>' : "") +
+    '<button class="btn" data-act="close" data-k="' + k + '">بستن</button>' +
+    '</div>';
 }
 
 function render() {
@@ -715,9 +753,10 @@ function render() {
 
   const q = query.trim().toLowerCase();
   const list = sortItems(all.filter(it => {
-    const done = isDone(state[it.key]);
-    if (filter === "todo" && done) return false;
+    const done = isDone(state[it.key]), w = isWatching(it);
+    if (filter === "todo" && (done || w)) return false;
     if (filter === "done" && !done) return false;
+    if (filter === "watch" && !w) return false;
     if (filter === "dl" && !isDl(it)) return false;
     const g = genreOf(it);
     if (genreFilter === "none" && g) return false;
@@ -731,80 +770,132 @@ function render() {
 
   ul.innerHTML = list.map(it => {
     const key = it.key, v = state[key], done = isDone(v), k = encodeURIComponent(key);
-    const g = genreOf(it), dl = isDl(it);
+    const g = genreOf(it), dl = isDl(it), w = isWatching(it);
+    const wn = w ? (meta[key].w || "") : "";
     let badge;
-    if (!EDIT) badge = v === "d" ? '<span class="badge dropped static">رها</span>' : (done ? '<span class="badge rated static">' + v + '</span>' : "");
+    if (!EDIT) {
+      badge = v === "d" ? '<span class="badge dropped static">رها</span>'
+        : done ? '<span class="badge rated static">' + v + '</span>'
+        : w ? '<span class="badge watching static">می‌بینم</span>' : "";
+    }
     else if (v === "d") badge = '<button class="badge dropped" data-act="edit" data-k="' + k + '" aria-label="تغییر وضعیت">رها</button>';
     else if (done) badge = '<button class="badge rated" data-act="edit" data-k="' + k + '" aria-label="تغییر امتیاز">' + v + '</button>';
+    else if (w) badge = '<button class="badge watching" data-act="edit" data-k="' + k + '" aria-label="ویرایش">می‌بینم</button>';
     else badge = '<button class="badge" data-act="edit" data-k="' + k + '" aria-label="امتیاز دادن">امتیاز</button>';
 
-    let panelHtml = "";
-    if (openKey === key) {
-      const cur = typeof v === "number" ? v : "";
-      const opts = '<option value=""' + (g ? "" : " selected") + '>بدون ژانر</option>' +
-        GENRES.map(x => '<option value="' + x + '"' + (x === g ? " selected" : "") + '>' + x + '</option>').join("");
-      panelHtml =
-        '<div class="picker">' +
-        '<input type="number" inputmode="decimal" min="0" max="10" step="0.1" placeholder="۰ تا ۱۰" value="' + cur + '" data-input="' + k + '">' +
-        '<button class="btn primary" data-act="rate" data-k="' + k + '">ثبت امتیاز</button>' +
-        '<button class="btn danger" data-act="drop" data-k="' + k + '">رها کردم</button>' +
-        (done ? '<button class="btn" data-act="clear" data-k="' + k + '">پاک کردن</button>' : "") +
-        '</div>' +
-        '<div class="picker picker2">' +
-        '<select data-genre="' + k + '" aria-label="ژانر">' + opts + '</select>' +
-        '<button class="btn" data-act="dl" data-k="' + k + '">' + (dl ? "برداشتن علامت دانلود" : "دانلود کردم") + '</button>' +
-        (it.custom ? '<button class="btn danger" data-act="del" data-k="' + k + '">حذف از لیست</button>' : "") +
-        '<button class="btn" data-act="close" data-k="' + k + '">بستن</button>' +
-        '</div>';
-    }
+    const tags = (g ? '<span class="tag">' + esc(g) + '</span>' : "") +
+      (w ? '<span class="tag watch">در حال دیدن' + (wn ? " · " + esc(wn) : "") + '</span>' : "") +
+      (dl ? '<span class="tag dl">دانلود شده</span>' : "");
 
-    return '<li class="row' + (done ? " done" : "") + '"><div class="line">' +
+    return '<li class="row' + (done ? " done" : "") + '" data-edit-root><div class="line">' +
       '<button class="name" data-act="copy" data-name="' + esc(it.title) + '">' +
       '<span class="nm">' + esc(it.title) + '</span>' +
       (it.year ? '<span class="yr">' + it.year + '</span>' : "") +
       (it.note ? '<span class="note">' + esc(it.note) + '</span>' : "") +
-      ((g || dl) ? '<span class="tags">' + (g ? '<span class="tag">' + esc(g) + '</span>' : "") +
-        (dl ? '<span class="tag dl">دانلود شده</span>' : "") + '</span>' : "") +
-      '</button>' + badge + '</div>' + panelHtml + '</li>';
+      (tags ? '<span class="tags">' + tags + '</span>' : "") +
+      '</button>' + badge + '</div>' + (EDIT && openKey === key ? editPanel(it) : "") + '</li>';
   }).join("");
 
-  if (focusNext) {
-    focusNext = false;
-    const inp = ul.querySelector("input[data-input]");
-    if (inp) inp.focus();
-  }
+  if (focusNext) { focusNext = false; const inp = ul.querySelector("input[data-input]"); if (inp) inp.focus(); }
+  if (focusProg) { focusProg = false; const inp = ul.querySelector("input[data-progress]"); if (inp) inp.focus(); }
 }
 
-function commit(msg) { markDirty(); render(); if (msg) toast(msg); }
-function setValue(key, val) { state[key] = val; openKey = null; commit(); }
+// ---- random pick ----
+let pickKey = null, pickOpen = false, tasteMode = false, focusProg = false;
 
-// ---- random pick: unwatched, not downloaded, respects the genre filter ----
-function pickRandom() {
-  const card = $("pickCard");
-  const pool = items(tab).filter(it => {
-    if (isDone(state[it.key]) || isDl(it)) return false;
+function genreAffinity() {
+  const sums = {}, ratings = [];
+  for (const t of ["m", "s"]) {
+    for (const it of items(t)) {
+      const v = state[it.key];
+      const r = typeof v === "number" ? v : (v === "d" ? 2 : null);   // dropped counts as a low score
+      if (r === null) continue;
+      ratings.push(r);
+      const g = genreOf(it);
+      if (g) (sums[g] = sums[g] || []).push(r);
+    }
+  }
+  const prior = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 6;
+  const res = {};
+  for (const g of Object.keys(sums)) {
+    res[g] = { avg: (sums[g].reduce((a, b) => a + b, 0) + prior * 2) / (sums[g].length + 2), n: sums[g].length };
+  }
+  return { res, prior };
+}
+
+function pickPool() {
+  return items(tab).filter(it => {
+    if (isDone(state[it.key]) || isDl(it) || isWatching(it)) return false;
     const g = genreOf(it);
     if (genreFilter === "none") return !g;
     if (genreFilter !== "all") return g === genreFilter;
     return true;
   });
-  card.hidden = false;
+}
+
+function pickRandom() {
+  const card = $("pickCard");
+  const pool = pickPool();
+  pickOpen = false;
   if (!pool.length) {
-    card.innerHTML = '<div class="lbl">چیزی برای پیشنهاد نمونده (ندیده‌هایی که دانلود نکردی، با این ژانر)</div>';
+    pickKey = null;
+    card.hidden = false;
+    card.innerHTML = '<div class="lbl">چیزی برای پیشنهاد نمونده (ندیده‌هایی که دانلود نکردی و نمی‌بینی، با این ژانر)</div>';
     return;
   }
   const choices = pool.length > 1 ? pool.filter(it => it.key !== lastPick) : pool;
-  const it = choices[Math.floor(Math.random() * choices.length)];
-  lastPick = it.key;
-  const g = genreOf(it);
-  card.innerHTML =
-    '<div class="lbl">پیشنهاد ' + LABEL[tab] + (g ? " · " + esc(g) : "") + '</div>' +
-    '<button class="ttl" data-act="copy" data-name="' + esc(it.title) + '">' + esc(it.title) +
-    (it.year ? '<span class="yr">' + it.year + '</span>' : "") + '</button>' +
-    '<div class="acts"><button class="btn primary" id="pickAgain">یکی دیگه</button>' +
-    '<button class="btn" id="pickClose">بستن</button></div>';
+  let it;
+  if (tasteMode && EDIT) {
+    const { res, prior } = genreAffinity();
+    const weights = choices.map(c => { const a = res[genreOf(c)]; return Math.max(0.05, Math.pow((a ? a.avg : prior) / 10, 2)); });
+    let r = Math.random() * weights.reduce((a, b) => a + b, 0), i = 0;
+    while (i < choices.length - 1 && r >= weights[i]) { r -= weights[i]; i++; }
+    it = choices[i];
+  } else {
+    it = choices[Math.floor(Math.random() * choices.length)];
+  }
+  pickKey = it.key; lastPick = it.key;
+  renderPickCard();
 }
-function hidePick() { $("pickCard").hidden = true; }
+
+function renderPickCard() {
+  const card = $("pickCard");
+  const it = pickKey && items(tab).find(x => x.key === pickKey);
+  if (!it) return;
+  const g = genreOf(it);
+  let reason = "";
+  if (tasteMode && EDIT && g) {
+    const a = genreAffinity().res[g];
+    if (a) reason = '<div class="muted">میانگین امتیازهات به ژانر ' + esc(g) + ': ' + a.avg.toFixed(1) + '</div>';
+  }
+  card.hidden = false;
+  card.innerHTML =
+    '<div class="lbl">پیشنهاد ' + LABEL[tab] + (g ? " · " + esc(g) : "") + (tasteMode && EDIT ? " · سلیقه‌ای" : "") + '</div>' +
+    '<button class="ttl" data-act="copy" data-name="' + esc(it.title) + '">' + esc(it.title) +
+    (it.year ? '<span class="yr">' + it.year + '</span>' : "") + '</button>' + reason +
+    '<div class="acts"><button class="btn primary" id="pickAgain">یکی دیگه</button>' +
+    (EDIT ? '<button class="btn" data-act="pickedit">ویرایش</button>' : "") +
+    '<button class="btn" id="pickClose">بستن</button></div>' +
+    (EDIT && pickOpen ? editPanel(it) : "");
+}
+
+function hidePick() { pickKey = null; pickOpen = false; $("pickCard").hidden = true; }
+
+// after any change: if the suggested title no longer qualifies (rated, watching, downloaded, deleted) pick the next one
+function refreshPick() {
+  if ($("pickCard").hidden || !pickKey) return;
+  const it = items(tab).find(x => x.key === pickKey);
+  if (!it || isDone(state[pickKey]) || isDl(it) || isWatching(it)) { pickRandom(); toast("ثبت شد؛ پیشنهاد بعدی"); return; }
+  renderPickCard();
+}
+
+function commit(msg) { markDirty(); render(); refreshPick(); if (msg) toast(msg); }
+function setValue(key, val) {
+  state[key] = val;
+  openKey = null; pickOpen = false;
+  if (val !== null && meta[key]) { delete meta[key].w; cleanMeta(key); }   // rated or dropped: no longer "watching"
+  commit();
+}
 
 // ---- manual add ----
 function addItem() {
@@ -866,7 +957,6 @@ document.addEventListener("click", async e => {
   if (id === "bCopy") { copyBackup(); return; }
   if (id === "sSave") { saveSettings(); return; }
   if (id === "retrySave") { flush(); return; }
-  if (id === "bRestore") { restoreBackup(); return; }
 
   const b = e.target.closest("[data-act]");
   if (!b) return;
@@ -880,25 +970,35 @@ document.addEventListener("click", async e => {
     openKey = openKey === key ? null : key;
     focusNext = openKey !== null;
     render();
-  } else if (act === "close") { openKey = null; render(); }
-  else if (act === "drop") setValue(key, "d");
+  } else if (act === "pickedit") {
+    pickOpen = !pickOpen;
+    renderPickCard();
+    if (pickOpen) { const inp = $("pickCard").querySelector("input[data-input]"); if (inp) inp.focus(); }
+  } else if (act === "close") {
+    openKey = null; pickOpen = false; render(); refreshPick();
+  } else if (act === "drop") setValue(key, "d");
   else if (act === "clear") setValue(key, null);
   else if (act === "rate") {
-    const inp = b.closest(".row").querySelector("input[data-input]");
+    const inp = b.closest("[data-edit-root]").querySelector("input[data-input]");
     const n = parseFloat(String(inp.value).replace(",", "."));
     if (isNaN(n) || n < 0 || n > 10) { toast("عددی بین ۰ تا ۱۰ بنویس"); return; }
     setValue(key, Math.round(n * 10) / 10);
   } else if (act === "dl") {
     const m = meta[key] || (meta[key] = {});
     if (m.dl) delete m.dl; else m.dl = true;
-    if (m.g === undefined && !m.dl) delete meta[key];
+    cleanMeta(key);
+    commit();
+  } else if (act === "watch") {
+    const m = meta[key] || (meta[key] = {});
+    if (m.w !== undefined) delete m.w; else { m.w = ""; focusProg = true; }
+    cleanMeta(key);
     commit();
   } else if (act === "del") {
     const [t, ...rest] = key.split("|");
     const title = rest.join("|");
     custom = custom.filter(c => !(c.t === t && c.title === title));
     delete state[key]; delete meta[key];
-    openKey = null;
+    openKey = null; pickOpen = false;
     commit("حذف شد");
   }
 });
@@ -910,24 +1010,40 @@ document.addEventListener("change", e => {
     const base = GENRE[key.split("|").slice(1).join("|")] || "";
     if (e.target.value === base) delete m.g;
     else m.g = e.target.value;   // "" = explicitly no genre
-    if (m.g === undefined && !m.dl) delete meta[key];
+    cleanMeta(key);
     commit();
+  } else if (e.target.matches("input[data-progress]")) {
+    render(); refreshPick();
+  }
+});
+
+document.addEventListener("input", e => {
+  if (e.target.matches("input[data-progress]")) {
+    const key = decodeURIComponent(e.target.dataset.progress);
+    const m = meta[key] || (meta[key] = {});
+    m.w = e.target.value;
+    markDirty();   // no re-render while typing, so the keyboard stays open
   }
 });
 
 document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.matches("input[data-input]")) {
-    e.target.closest(".row").querySelector('[data-act="rate"]').click();
+    e.target.closest("[data-edit-root]").querySelector('[data-act="rate"]').click();
   }
 });
 
 $("q").addEventListener("input", e => { query = e.target.value; render(); });
 $("fGenre").addEventListener("change", e => { genreFilter = e.target.value; render(); });
 $("fSort").addEventListener("change", e => { sortBy = e.target.value; render(); });
+$("taste").addEventListener("change", e => { tasteMode = e.target.checked; });
 
 fillSelects();
 if (EDIT) loadCfg();
-else document.querySelectorAll('[data-panel="add"],[data-panel="backup"],[data-panel="settings"]').forEach(b => { b.hidden = true; });
+else {
+  document.querySelectorAll('[data-panel="add"],[data-panel="backup"],[data-panel="settings"]').forEach(b => { b.hidden = true; });
+  $("tasteWrap").hidden = true;
+  document.querySelector('[data-f="dl"]').hidden = true;
+}
 render();
 loadData().then(() => {
   if (EDIT && !configured()) { panel = "settings"; setStatus("notoken"); }
