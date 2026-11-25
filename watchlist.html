@@ -825,7 +825,10 @@ function genreAffinity() {
 
 function pickPool() {
   return items(tab).filter(it => {
-    if (isDone(state[it.key]) || isDl(it) || isWatching(it)) return false;
+    const v = state[it.key];
+    if (EDIT) { if (isDone(v) || isDl(it)) return false; }   // I don't need titles I've seen or downloaded
+    else if (v === "d") return false;                        // visitors can get titles I finished, but not ones I dropped
+    if (isWatching(it)) return false;
     const g = genreOf(it);
     if (genreFilter === "none") return !g;
     if (genreFilter !== "all") return g === genreFilter;
@@ -868,6 +871,7 @@ function renderPickCard() {
     const a = genreAffinity().res[g];
     if (a) reason = '<div class="muted">میانگین امتیازهات به ژانر ' + esc(g) + ': ' + a.avg.toFixed(1) + '</div>';
   }
+  if (!EDIT && typeof state[it.key] === "number") reason += '<div class="muted">امتیاز من: ' + state[it.key] + '</div>';
   card.hidden = false;
   card.innerHTML =
     '<div class="lbl">پیشنهاد ' + LABEL[tab] + (g ? " · " + esc(g) : "") + (tasteMode && EDIT ? " · سلیقه‌ای" : "") + '</div>' +
